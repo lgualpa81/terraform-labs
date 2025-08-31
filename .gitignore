@@ -1,0 +1,10 @@
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+# tf lock file
+.terraform.lock.hcl
+*.auto.tfvars
+*.tfvars
+*.tfvars.json
+.terraformrc
+*.log
