@@ -1,0 +1,78 @@
+name: "Terraform CI/CD"
+
+on:
+  push:
+    branches: [feature/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  terraform:
+    name: "Terraform"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "002"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Format
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Create data.tfvars
+        run: |
+          cat <<EOF > data.tfvars
+          student_name      = "devops"
+          github_user       = "github-user"
+          favorite_language = "Python"
+
+          project_config = {
+            name        = "devops-journey"
+            environment = "learning"
+            day         = 22
+          }
+
+          tools_mastered = [
+            "Git",
+            "Linux",
+            "Docker",
+            "Docker Compose",
+            "Terraform"
+          ]
+
+          tools_to_learn = [
+            "Kubernetes",
+            "Helm",
+            "ArgoCD",
+            "Prometheus",
+            "Grafana"
+          ]
+
+          generate_files = {
+            readme   = true
+            config   = true
+            progress = true
+            roadmap  = true
+          }
+          EOF
+        #working-directory: 002
+
+      - name: Terraform Plan
+        run: terraform plan -var-file="data.tfvars"
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve -var-file="data.tfvars"
