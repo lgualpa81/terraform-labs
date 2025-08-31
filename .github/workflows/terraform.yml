@@ -68,7 +68,7 @@ jobs:
             roadmap  = true
           }
           EOF
-        working-directory: 002
+        #working-directory: 002
 
       - name: Terraform Plan
         run: terraform plan -var-file="data.tfvars"
