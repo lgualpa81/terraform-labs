@@ -178,7 +178,7 @@ jobs:
 
       # Guardar el plan para usar en CD
       - name: Subir plan
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
           path: ${{ matrix.environment }}.tfplan
