@@ -162,7 +162,7 @@ jobs:
 
       - name: Create ${{ matrix.environment }}.tfvars
         run: |
-          cat <<EOF > ${{ matrix.environment }}.tfvars
+          cat <<EOF > environments/${{ matrix.environment }}.tfvars
           environment      =  ${{ matrix.environment }}
 
           project_config = {
