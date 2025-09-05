@@ -174,7 +174,7 @@ jobs:
         run: |
           echo "📊 Verificando recursos creados en LocalStack..."
           aws --endpoint-url=http://localhost:4566 s3 ls
-          aws --endpoint-url=http://localhost:4566 s3 ls s3://terraform-state-roxs
+          aws --endpoint-url=http://localhost:4566 s3 ls s3://terraform-bucket-state
 
       # Guardar el plan para usar en CD
       - name: Subir plan
@@ -243,12 +243,12 @@ jobs:
           AWS_ENDPOINT_URL: http://localhost:4566
 
       - name: Descargar plan de dev
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v5
         with:
           name: tfplan-dev
 
       - name: Mostrar plan en comentario
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -273,7 +273,7 @@ jobs:
             </details>
 
             **✅ Validado con LocalStack**  
-            **📦 Backend:** S3 (terraform-state-roxs)  
+            **📦 Backend:** S3 (terraform-bucket-state)  
             **🌍 Ambiente:** Desarrollo  
             `;
 
