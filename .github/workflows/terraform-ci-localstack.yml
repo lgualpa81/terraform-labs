@@ -180,6 +180,8 @@ jobs:
           terraform plan \
             -var-file="environments/${{ matrix.environment }}.tfvars" \
             -out="${{ matrix.environment }}.tfplan"
+          pwd
+          ls -l
         env:
           AWS_ENDPOINT_URL: http://localhost:4566
           TF_VAR_database_password: "ci-test-password-${{ matrix.environment }}"
