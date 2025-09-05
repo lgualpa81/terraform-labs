@@ -18,6 +18,8 @@ env:
   AWS_ACCESS_KEY_ID: test
   AWS_SECRET_ACCESS_KEY: test
   AWS_DEFAULT_REGION: us-east-1
+  PLANS_BUCKET: terraform-plans-bucket
+  AWS_ENDPOINT_URL: http://localhost:4566
 
 jobs:
   # Job 1: Validación básica
@@ -70,7 +72,7 @@ jobs:
       # Paso 4: Configurar LocalStack
       - name: Configurar LocalStack
         run: |
-          export AWS_ENDPOINT_URL=http://localhost:4566
+          export AWS_ENDPOINT_URL=${{ env.AWS_ENDPOINT_URL }}
           ./scripts/setup-localstack.sh
 
       # Paso 5: Verificar formato
@@ -81,11 +83,11 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="endpoint=http://localhost:4566" \
+            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
             -backend-config="access_key=test" \
             -backend-config="secret_key=test"
-        env:
-          AWS_ENDPOINT_URL: http://localhost:4566
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
 
       # Paso 7: Validar sintaxis
       - name: Validar sintaxis
@@ -141,24 +143,24 @@ jobs:
 
       - name: Configurar LocalStack
         run: |
-          export AWS_ENDPOINT_URL=http://localhost:4566
+          export AWS_ENDPOINT_URL=${{ env.AWS_ENDPOINT_URL }}
           ./scripts/setup-localstack.sh
 
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="endpoint=http://localhost:4566" \
+            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
             -backend-config="access_key=test" \
             -backend-config="secret_key=test"
-        env:
-          AWS_ENDPOINT_URL: http://localhost:4566
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
 
       - name: Seleccionar workspace
         run: |
           terraform workspace select ${{ matrix.environment }} || \
           terraform workspace new ${{ matrix.environment }}
-        env:
-          AWS_ENDPOINT_URL: http://localhost:4566
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
 
       - name: Crear carpeta environments
         run: |
@@ -183,37 +185,50 @@ jobs:
           pwd
           ls -l
         env:
-          AWS_ENDPOINT_URL: http://localhost:4566
+          #AWS_ENDPOINT_URL: http://localhost:4566
           TF_VAR_database_password: "ci-test-password-${{ matrix.environment }}"
 
-      - name: Verificar existencia de dev.tfplan
+      # - name: Verificar existencia de dev.tfplan
+      #   run: |
+      #     if [ -f ${{ matrix.environment }}.tfplan ]; then
+      #       echo "El archivo existe."
+      #     else
+      #       echo "El archivo no existe."
+      #       exit 1
+      #     fi
+      - name: Subir plan a S3 (LocalStack)
         run: |
-          if [ -f ${{ matrix.environment }}.tfplan ]; then
-            echo "El archivo existe."
-          else
-            echo "El archivo no existe."
-            exit 1
-          fi
+          echo "📦 Subiendo plan de ${{ matrix.environment }} a S3..."
 
-      # Verificar recursos en LocalStack
-      - name: Verificar recursos en LocalStack (before)
-        run: |
+          # Crear un bucket específico para los plans si no existe
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 mb s3://${{ env.PLANS_BUCKET }} || echo "Bucket ya existe"
+
+          # Subir el archivo de plan
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 cp \
+            ${{ matrix.environment }}.tfplan \
+            s3://${{ env.PLANS_BUCKET }}/plans/${{ matrix.environment }}/${{ github.run_id }}/${{ matrix.environment }}.tfplan
+
+          # Opcional: Agregar metadata
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3api put-object-tagging \
+            --bucket ${{ env.PLANS_BUCKET }} \
+            --key plans/${{ matrix.environment }}/${{ github.run_id }}/${{ matrix.environment }}.tfplan \
+            --tagging "TagSet=[{Key=Environment,Value=${{ matrix.environment }}},{Key=RunId,Value=${{ github.run_id }}},{Key=Branch,Value=${{ github.ref_name }}}]"
+
+          echo "✅ Plan subido exitosamente a S3"
+
           echo "📊 Verificando recursos creados en LocalStack..."
-          aws --endpoint-url=http://localhost:4566 s3 ls
-          aws --endpoint-url=http://localhost:4566 s3 ls s3://terraform-bucket-state
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls s3://${{ env.PLANS_BUCKET }}
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
 
-      # Guardar el plan para usar en CD
+      # Guardar el plan para usar en CD, upload a GitHub Artifacts para backup
       - name: Subir plan
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
           path: 006/${{ matrix.environment }}.tfplan
           retention-days: 1
-
-      - name: Verificar recursos en LocalStack (after)
-        run: |
-          echo "📊 Verificando recursos subidos a bucket en LocalStack..."          
-          aws --endpoint-url=http://localhost:4566 s3 ls s3://terraform-bucket-state
 
   # Job 3: Comentar el plan en el PR
   comment-plan:
@@ -261,22 +276,22 @@ jobs:
 
       - name: Configurar LocalStack
         run: |
-          export AWS_ENDPOINT_URL=http://localhost:4566
+          export AWS_ENDPOINT_URL=${{ env.AWS_ENDPOINT_URL }}
           ./scripts/setup-localstack.sh
 
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="endpoint=http://localhost:4566" \
+            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
             -backend-config="access_key=test" \
             -backend-config="secret_key=test"
-        env:
-          AWS_ENDPOINT_URL: http://localhost:4566
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
 
       - name: Descargar plan de dev
         uses: actions/download-artifact@v5
         with:
-          name: tfplan-dev
+          name: 006/tfplan-dev
 
       - name: Mostrar plan en comentario
         uses: actions/github-script@v8
@@ -304,7 +319,7 @@ jobs:
             </details>
 
             **✅ Validado con LocalStack**  
-            **📦 Backend:** S3 (terraform-bucket-state)  
+            **📦 Backend:** S3 (${{ env.PLANS_BUCKET }})  
             **🌍 Ambiente:** Desarrollo  
             `;
 
