@@ -186,6 +186,15 @@ jobs:
           AWS_ENDPOINT_URL: http://localhost:4566
           TF_VAR_database_password: "ci-test-password-${{ matrix.environment }}"
 
+      - name: Verificar existencia de dev.tfplan
+        run: |
+          if [ -f ${{ matrix.environment }}.tfplan ]; then
+            echo "El archivo existe."
+          else
+            echo "El archivo no existe."
+            exit 1
+          fi
+
       # Verificar recursos en LocalStack
       - name: Verificar recursos en LocalStack
         run: |
