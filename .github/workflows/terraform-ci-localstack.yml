@@ -160,6 +160,17 @@ jobs:
         env:
           AWS_ENDPOINT_URL: http://localhost:4566
 
+      - name: Create ${{ matrix.environment }}.tfvars
+        run: |
+          cat <<EOF > ${{ matrix.environment }}.tfvars
+          environment      =  ${{ matrix.environment }}
+
+          project_config = {
+            name        = "devops-journey"            
+            day         = 27
+          }
+          EOF
+
       - name: Generar plan
         run: |
           terraform plan \
