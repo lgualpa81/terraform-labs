@@ -196,7 +196,7 @@ jobs:
           fi
 
       # Verificar recursos en LocalStack
-      - name: Verificar recursos en LocalStack
+      - name: Verificar recursos en LocalStack (before)
         run: |
           echo "📊 Verificando recursos creados en LocalStack..."
           aws --endpoint-url=http://localhost:4566 s3 ls
@@ -209,6 +209,11 @@ jobs:
           name: tfplan-${{ matrix.environment }}
           path: ${{ matrix.environment }}.tfplan
           retention-days: 1
+
+      - name: Verificar recursos en LocalStack (after)
+        run: |
+          echo "📊 Verificando recursos subidos a bucket en LocalStack..."          
+          aws --endpoint-url=http://localhost:4566 s3 ls s3://terraform-bucket-state
 
   # Job 3: Comentar el plan en el PR
   comment-plan:
