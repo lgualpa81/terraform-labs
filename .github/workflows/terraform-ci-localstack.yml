@@ -182,6 +182,7 @@ jobs:
           terraform plan \
             -var-file="environments/${{ matrix.environment }}.tfvars" \
             -out="${{ matrix.environment }}.tfplan"
+          terraform show -json ${{ matrix.environment }}.tfplan > "${{ matrix.environment }}.tfplan.json"
           pwd
           ls -l
         env:
@@ -227,7 +228,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
-          path: 006/${{ matrix.environment }}.tfplan
+          path: "006/${{ matrix.environment }}.tfplan.json"
           retention-days: 1
 
   # Job 3: Comentar el plan en el PR
@@ -304,7 +305,7 @@ jobs:
             const { execSync } = require('child_process');
             console.log(execSync('pwd', { encoding: 'utf8' }));
             console.log(execSync('ls -la 006/', { encoding: 'utf8' }));
-            const planOutput = execSync('terraform show -no-color 006/dev.tfplan', { 
+            const planOutput = execSync('terraform show -no-color 006/dev.tfplan.json', { 
               encoding: 'utf8',
               env: { ...process.env, AWS_ENDPOINT_URL: 'http://localhost:4566' }
             });
