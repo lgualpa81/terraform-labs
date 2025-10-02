@@ -291,7 +291,7 @@ jobs:
       - name: Descargar plan de dev
         uses: actions/download-artifact@v5
         with:
-          name: 006/tfplan-${{ matrix.environment }}
+          name: 006/tfplan-dev
 
       - name: Mostrar plan en comentario
         uses: actions/github-script@v8
