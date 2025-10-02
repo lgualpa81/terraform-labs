@@ -181,8 +181,7 @@ jobs:
         run: |
           terraform plan \
             -var-file="environments/${{ matrix.environment }}.tfvars" \
-            -out="${{ matrix.environment }}.tfplan"
-          terraform show -json ${{ matrix.environment }}.tfplan > "${{ matrix.environment }}.tfplan.json"
+            -out="${{ matrix.environment }}.tfplan"          
           pwd
           ls -l
         env:
@@ -228,7 +227,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
-          path: "006/${{ matrix.environment }}.tfplan.json"
+          path: "006/${{ matrix.environment }}.tfplan"
           retention-days: 1
 
   # Job 3: Comentar el plan en el PR
@@ -286,14 +285,14 @@ jobs:
           name: tfplan-dev
           path: 006/
 
-      - name: Terraform Init
-        run: |
-          terraform init
-        #    -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
-        #    -backend-config="access_key=test" \
-        #    -backend-config="secret_key=test"
-        # env:
-        #   AWS_ENDPOINT_URL: http://localhost:4566
+      # - name: Terraform Init
+      #   run: |
+      #     terraform init
+      #    -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
+      #    -backend-config="access_key=test" \
+      #    -backend-config="secret_key=test"
+      # env:
+      #   AWS_ENDPOINT_URL: http://localhost:4566
 
       - name: Mostrar plan en comentario
         uses: actions/github-script@v8
@@ -305,7 +304,15 @@ jobs:
             const { execSync } = require('child_process');
             console.log(execSync('pwd', { encoding: 'utf8' }));
             console.log(execSync('ls -la 006/', { encoding: 'utf8' }));
-            const planOutput = execSync('terraform show -no-color 006/dev.tfplan.json', { 
+            try {
+              execSync('terraform -chdir=006 init', { 
+                encoding: 'utf8',
+                stdio: 'inherit'
+              });
+            } catch (error) {
+              console.error('Error al inicializar Terraform:', error);
+            }
+            const planOutput = execSync('terraform -chdir=006 show -no-color dev.tfplan', { 
               encoding: 'utf8',
               env: { ...process.env, AWS_ENDPOINT_URL: 'http://localhost:4566' }
             });
