@@ -296,15 +296,14 @@ jobs:
 
       - name: Mostrar plan en comentario
         uses: actions/github-script@v8
-        run: |
-          pwd
-          ls -l
         with:
           script: |
             const fs = require('fs');
 
             // Generar el plan en formato legible
             const { execSync } = require('child_process');
+            console.log(execSync('pwd'));
+            console.log(execSync('ls -l'));
             const planOutput = execSync('terraform show -no-color dev.tfplan', { 
               encoding: 'utf8',
               env: { ...process.env, AWS_ENDPOINT_URL: 'http://localhost:4566' }
