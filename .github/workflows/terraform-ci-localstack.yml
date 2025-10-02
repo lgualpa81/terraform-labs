@@ -85,9 +85,9 @@ jobs:
           terraform init
         #       -backend-config="access_key=test" \
         #       -backend-config="secret_key=test"
-        #       -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}"
-        env:
-          AWS_ENDPOINT_URL: ${{ env.AWS_ENDPOINT_URL }}
+        #       -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}"
+        # env:
+        #   AWS_ENDPOINT_URL: ${{ env.AWS_ENDPOINT_URL }}
 
       # Paso 7: Validar sintaxis
       - name: Validar sintaxis
@@ -149,7 +149,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
+            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
             -backend-config="access_key=test" \
             -backend-config="secret_key=test"
         # env:
@@ -282,7 +282,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
+            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
             -backend-config="access_key=test" \
             -backend-config="secret_key=test"
         # env:
