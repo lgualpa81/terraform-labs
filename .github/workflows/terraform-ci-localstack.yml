@@ -291,7 +291,8 @@ jobs:
       - name: Descargar plan de dev
         uses: actions/download-artifact@v5
         with:
-          name: 006/tfplan-dev
+          name: tfplan-dev
+          path: 006/dev.tfplan
 
       - name: Mostrar plan en comentario
         uses: actions/github-script@v8
@@ -301,7 +302,7 @@ jobs:
 
             // Generar el plan en formato legible
             const { execSync } = require('child_process');
-            const planOutput = execSync('terraform show -no-color ${{ matrix.environment }}.tfplan', { 
+            const planOutput = execSync('terraform show -no-color dev.tfplan', { 
               encoding: 'utf8',
               env: { ...process.env, AWS_ENDPOINT_URL: 'http://localhost:4566' }
             });

@@ -125,7 +125,7 @@ jobs:
           terraform output
 
           echo "📦 Verificando recursos en LocalStack S3..."
-          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls s3://${{ env.PLANS_BUCKET }}/workspaces/dev/
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls s3://${{ env.PLANS_BUCKET }}/workspaces/dev/ --recursive
 
           echo "🔍 Estado actual de Terraform..."
           aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 cp s3://${{ env.PLANS_BUCKET }}/workspaces/dev/terraform.tfstate - | head -20
