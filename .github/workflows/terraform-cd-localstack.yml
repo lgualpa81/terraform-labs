@@ -1,0 +1,319 @@
+name: Terraform CD - Despliegue con LocalStack
+
+# Cuándo ejecutar
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - "docker-compose.localstack.yml"
+  # También permitir ejecución manual
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Ambiente a desplegar"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: "Acción a realizar"
+        required: true
+        default: "apply"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  TF_VERSION: 1.6.4
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: us-east-1
+  PLANS_BUCKET: terraform-plans-bucket
+  AWS_ENDPOINT_URL: http://localhost:4566
+
+jobs:
+  # Despliegue a Desarrollo (automático)
+  deploy-dev:
+    name: 🔧 Desplegar a Desarrollo (LocalStack)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "006"
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: development
+      url: http://localhost:8080
+
+    services:
+      localstack:
+        image: localstack/localstack:4.7.0
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,ec2,iam,lambda,cloudformation,logs,events
+          DEBUG: 1
+          DATA_DIR: /var/lib/localstack/data
+          PERSISTENCE: 1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar permisos de scripts
+        run: |
+          chmod +x scripts/setup-localstack.sh
+          chmod +x scripts/wait-for-localstack.sh
+
+      - name: Setup Terraform y herramientas
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Setup AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+
+      - name: Configurar LocalStack y S3 Backend
+        run: |
+          export AWS_ENDPOINT_URL=${{ env.AWS_ENDPOINT_URL }}
+          ./scripts/setup-localstack.sh
+
+      - name: Terraform Init con S3 Backend
+        run: |
+          terraform init
+        #    -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
+        #    -backend-config="access_key=test" \
+        #    -backend-config="secret_key=test"
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Seleccionar workspace dev
+        run: terraform workspace select dev || terraform workspace new dev
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Aplicar cambios a dev
+        run: |
+          terraform apply \
+            -var-file="environments/dev.tfvars" \
+            -auto-approve
+        env:
+          #AWS_ENDPOINT_URL: http://localhost:4566
+          TF_VAR_database_password: ${{ secrets.DEV_DB_PASSWORD || 'dev-default-password' }}
+
+      - name: Verificar despliegue en LocalStack
+        run: |
+          echo "🎉 Despliegue a desarrollo completado!"
+          echo "📊 Obteniendo información del despliegue..."
+          terraform output
+
+          echo "📦 Verificando recursos en LocalStack S3..."
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls s3://${{ env.PLANS_BUCKET }}/workspaces/dev/ --recursive
+
+          echo "🔍 Estado actual de Terraform..."
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 cp s3://${{ env.PLANS_BUCKET }}/workspaces/dev/terraform.tfstate - | head -20
+
+  # Despliegue a Staging (con aprobación)
+  deploy-staging:
+    name: 🧪 Desplegar a Staging (LocalStack)
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: http://localhost:8081
+
+    services:
+      localstack:
+        image: localstack/localstack:3.0
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,ec2,iam,lambda,cloudformation,logs,events
+          DEBUG: 1
+          DATA_DIR: /var/lib/localstack/data
+          PERSISTENCE: 1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar permisos de scripts
+        run: |
+          chmod +x scripts/setup-localstack.sh
+          chmod +x scripts/wait-for-localstack.sh
+
+      - name: Setup Terraform y herramientas
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Setup AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+
+      - name: Configurar LocalStack y S3 Backend
+        run: |
+          export AWS_ENDPOINT_URL=http://localhost:4566
+          ./scripts/setup-localstack.sh
+
+      - name: Terraform Init con S3 Backend
+        run: |
+          terraform init
+        #    -backend-config="endpoint=http://localhost:4566" \
+        #    -backend-config="access_key=test" \
+        #    -backend-config="secret_key=test"
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Seleccionar workspace staging
+        run: terraform workspace select staging || terraform workspace new staging
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Aplicar cambios a staging
+        run: |
+          terraform apply \
+            -var-file="environments/staging.tfvars" \
+            -auto-approve
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+          TF_VAR_database_password: ${{ secrets.STAGING_DB_PASSWORD || 'staging-default-password' }}
+
+      - name: Verificar aplicación en staging
+        run: |
+          echo "⏳ Esperando a que los servicios estén listos..."
+          sleep 30
+
+          echo "🧪 Verificando que la aplicación responda..."
+          curl -f http://localhost:8081 || echo "⚠️ Aplicación no responde aún"
+
+          echo "📦 Estado en LocalStack S3..."
+          aws --endpoint-url=http://localhost:4566 s3 ls s3://terraform-state-roxs/workspaces/staging/
+
+  # Despliegue a Producción (solo manual)
+  deploy-prod:
+    name: 🏭 Desplegar a Producción (LocalStack)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'prod'
+    environment:
+      name: production
+      url: http://production.roxs-voting.com
+
+    services:
+      localstack:
+        image: localstack/localstack:3.0
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,ec2,iam,lambda,cloudformation,logs,events
+          DEBUG: 1
+          DATA_DIR: /var/lib/localstack/data
+          PERSISTENCE: 1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar permisos de scripts
+        run: |
+          chmod +x scripts/setup-localstack.sh
+          chmod +x scripts/wait-for-localstack.sh
+
+      - name: Setup Terraform y herramientas
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+
+      - name: Configurar LocalStack y S3 Backend
+        run: |
+          export AWS_ENDPOINT_URL=http://localhost:4566
+          ./scripts/setup-localstack.sh
+
+      - name: Terraform Init con S3 Backend
+        run: |
+          terraform init
+        #    -backend-config="endpoint=http://localhost:4566" \
+        #    -backend-config="access_key=test" \
+        #    -backend-config="secret_key=test"
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Seleccionar workspace prod
+        run: terraform workspace select prod || terraform workspace new prod
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Plan para producción
+        run: |
+          terraform plan \
+            -var-file="environments/prod.tfvars" \
+            -out=prod.tfplan
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+          TF_VAR_database_password: ${{ secrets.PROD_DB_PASSWORD || 'prod-secure-password' }}
+
+      - name: Mostrar plan
+        run: terraform show -no-color prod.tfplan
+
+      - name: Aplicar a producción
+        if: github.event.inputs.action == 'apply'
+        run: terraform apply -auto-approve prod.tfplan
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Verificar producción
+        if: github.event.inputs.action == 'apply'
+        run: |
+          echo "🎉 ¡Despliegue a producción completado!"
+          terraform output
+
+          echo "📦 Verificando estado en LocalStack S3..."
+          aws --endpoint-url=http://localhost:4566 s3 ls s3://terraform-state-roxs/workspaces/prod/
+
+      - name: Notificar equipo
+        if: always()
+        run: |
+          echo "📢 Notificando al equipo sobre el despliegue..."
+          echo "🎯 Ambiente: Producción"
+          echo "📊 Acción: ${{ github.event.inputs.action }}"
+          echo "🔍 Estado del workflow: ${{ job.status }}"
+          # Aquí puedes agregar notificaciones a Slack, Teams, etc.

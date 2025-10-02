@@ -1,0 +1,347 @@
+name: Terraform CI - Validación con LocalStack
+
+# Cuándo ejecutar el pipeline
+on:
+  push:
+    branches: [feature/**]
+  pull_request:
+    branches: [main]
+    paths: # defino flujo de trabajo se ejecute solo si se realizan cambios en ciertos archivos.
+      - "**.tf"
+      - "**.tfvars"
+      - ".github/workflows/**"
+      - "docker-compose.localstack.yml"
+permissions:
+  contents: read
+  pull-requests: write # Necesario para comentar en PRs
+  issues: write # Necesario para comentar en issues
+
+# Variables globales
+env:
+  TF_VERSION: 1.6.4
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: us-east-1
+  PLANS_BUCKET: terraform-bucket
+  AWS_ENDPOINT_URL: http://localhost:4566
+
+jobs:
+  # Job 1: Validación básica
+  validate:
+    name: Validar Terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "006"
+
+    services:
+      localstack:
+        image: localstack/localstack:4.7.0
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,ec2,iam,lambda,cloudformation,logs,events
+          DEBUG: 1
+          DATA_DIR: /var/lib/localstack/data
+          PERSISTENCE: 1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Paso 1: Descargar código
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # Paso 2: Configurar permisos para scripts
+      - name: Configurar permisos de scripts
+        run: |
+          chmod +x scripts/setup-localstack.sh
+          chmod +x scripts/wait-for-localstack.sh
+
+      # Paso 3: Instalar Terraform y AWS CLI
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+
+      # Paso 4: Configurar LocalStack
+      - name: Configurar LocalStack
+        run: |
+          export AWS_ENDPOINT_URL=${{ env.AWS_ENDPOINT_URL }}
+          ./scripts/setup-localstack.sh
+
+      # Paso 5: Verificar formato
+      - name: Verificar formato de código
+        run: terraform fmt -check -recursive
+
+      # Paso 6: Inicializar Terraform con backend S3
+      - name: Terraform Init
+        run: |
+          terraform init
+        #       -backend-config="access_key=test" \
+        #       -backend-config="secret_key=test"
+        #       -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}"
+        # env:
+        #   AWS_ENDPOINT_URL: ${{ env.AWS_ENDPOINT_URL }}
+
+      # Paso 7: Validar sintaxis
+      - name: Validar sintaxis
+        run: terraform validate
+
+  # Job 2: Generar plan para cada ambiente con LocalStack
+  plan:
+    name: Plan para Ambientes (LocalStack)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "006"
+    needs: validate
+    strategy:
+      matrix:
+        environment: [dev, staging]
+
+    services:
+      localstack:
+        image: localstack/localstack:4.7.0
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,ec2,iam,lambda,cloudformation,logs,events
+          DEBUG: 1
+          DATA_DIR: /var/lib/localstack/data
+          PERSISTENCE: 1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar permisos de scripts
+        run: |
+          chmod +x scripts/setup-localstack.sh
+          chmod +x scripts/wait-for-localstack.sh
+
+      - name: Setup Terraform y AWS CLI
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+
+      - name: Configurar LocalStack
+        run: |
+          export AWS_ENDPOINT_URL=${{ env.AWS_ENDPOINT_URL }}
+          ./scripts/setup-localstack.sh
+
+      - name: Terraform Init
+        run: |
+          terraform init
+        #    -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
+        #    -backend-config="access_key=test" \
+        #    -backend-config="secret_key=test"
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Seleccionar workspace
+        run: |
+          terraform workspace select ${{ matrix.environment }} || \
+          terraform workspace new ${{ matrix.environment }}
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Crear carpeta environments
+        run: |
+          mkdir -p environments
+
+      - name: Crear archivo .tfvars para ${{ matrix.environment }}
+        run: |
+          cat <<EOF > environments/${{ matrix.environment }}.tfvars
+          environment    =  ${{ matrix.environment }}
+
+          project_config = {
+            name        = "devops-journey"            
+            day         = 27
+          }
+          EOF
+
+      - name: Generar plan
+        run: |
+          terraform plan \
+            -var-file="environments/${{ matrix.environment }}.tfvars" \
+            -out="${{ matrix.environment }}.tfplan"          
+          pwd
+          ls -l
+        env:
+          #AWS_ENDPOINT_URL: http://localhost:4566
+          TF_VAR_database_password: "ci-test-password-${{ matrix.environment }}"
+
+      # - name: Verificar existencia de dev.tfplan
+      #   run: |
+      #     if [ -f ${{ matrix.environment }}.tfplan ]; then
+      #       echo "El archivo existe."
+      #     else
+      #       echo "El archivo no existe."
+      #       exit 1
+      #     fi
+      - name: Subir plan a S3 (LocalStack)
+        run: |
+          echo "📦 Subiendo plan de ${{ matrix.environment }} a S3..."
+
+          # Crear un bucket específico para los plans si no existe
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 mb s3://${{ env.PLANS_BUCKET }} || echo "Bucket ya existe"
+
+          # Subir el archivo de plan
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 cp \
+            ${{ matrix.environment }}.tfplan \
+            s3://${{ env.PLANS_BUCKET }}/plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan
+
+          # Opcional: Agregar metadata
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3api put-object-tagging \
+            --bucket ${{ env.PLANS_BUCKET }} \
+            --key plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan \
+            --tagging "TagSet=[{Key=Environment,Value=${{ matrix.environment }}},{Key=RunId,Value=${{ github.run_id }}},{Key=Branch,Value=${{ github.ref_name }}}]"
+
+          echo "✅ Plan subido exitosamente a S3"
+
+          echo "📊 Verificando recursos creados en LocalStack..."
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls s3://${{ env.PLANS_BUCKET }} --recursive
+        # env:
+        #   AWS_ENDPOINT_URL: http://localhost:4566
+
+      # Guardar el plan para usar en CD, upload a GitHub Artifacts para backup
+      - name: Subir plan a GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: "006/${{ matrix.environment }}.tfplan"
+          retention-days: 1
+
+  # Job 3: Comentar el plan en el PR
+  comment-plan:
+    name: Comentar Plan en PR
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "006"
+    needs: plan
+    if: github.event_name == 'pull_request'
+
+    services:
+      localstack:
+        image: localstack/localstack:4.7.0
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,ec2,iam,lambda,cloudformation,logs,events
+          DEBUG: 1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar permisos de scripts
+        run: |
+          chmod +x scripts/setup-localstack.sh
+          chmod +x scripts/wait-for-localstack.sh
+
+      - name: Setup Terraform y AWS CLI
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Setup AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+
+      - name: Configurar LocalStack
+        run: |
+          export AWS_ENDPOINT_URL=${{ env.AWS_ENDPOINT_URL }}
+          ./scripts/setup-localstack.sh
+
+      - name: Descargar plan de dev
+        uses: actions/download-artifact@v5
+        with:
+          name: tfplan-dev
+          path: 006/
+
+      # - name: Terraform Init
+      #   run: |
+      #     terraform init
+      #    -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
+      #    -backend-config="access_key=test" \
+      #    -backend-config="secret_key=test"
+      # env:
+      #   AWS_ENDPOINT_URL: http://localhost:4566
+
+      - name: Mostrar plan en comentario
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Generar el plan en formato legible
+            const { execSync } = require('child_process');
+            console.log(execSync('pwd', { encoding: 'utf8' }));
+            console.log(execSync('ls -la 006/', { encoding: 'utf8' }));
+            try {
+              execSync('terraform -chdir=006 init', { 
+                encoding: 'utf8',
+                stdio: 'inherit'
+              });
+            } catch (error) {
+              console.error('Error al inicializar Terraform:', error);
+            }
+            const planOutput = execSync('terraform -chdir=006 show -no-color dev.tfplan', { 
+              encoding: 'utf8',
+              env: { ...process.env, AWS_ENDPOINT_URL: 'http://localhost:4566' }
+            });
+
+            // Crear comentario
+            const output = `## 📋 Plan de Terraform (Dev) con LocalStack
+
+            <details>
+            <summary>Ver cambios propuestos</summary>
+
+            \`\`\`
+            ${planOutput}
+            \`\`\`
+
+            </details>
+
+            **✅ Validado con LocalStack**  
+            **📦 Backend:** S3 (${{ env.PLANS_BUCKET }})  
+            **🌍 Ambiente:** Desarrollo  
+            `;
+
+            // Publicar comentario
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
