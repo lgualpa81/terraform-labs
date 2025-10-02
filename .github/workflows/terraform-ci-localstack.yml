@@ -83,9 +83,9 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-      #       -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
              -backend-config="access_key=test" \
              -backend-config="secret_key=test"
+      #       -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
       # env:
       #   AWS_ENDPOINT_URL: http://localhost:4566
 
