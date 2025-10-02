@@ -292,7 +292,7 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: tfplan-dev
-          path: 006/dev.tfplan
+          path: 006/
 
       - name: Mostrar plan en comentario
         uses: actions/github-script@v8
