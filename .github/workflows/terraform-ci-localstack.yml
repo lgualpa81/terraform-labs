@@ -206,12 +206,12 @@ jobs:
           # Subir el archivo de plan
           aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 cp \
             ${{ matrix.environment }}.tfplan \
-            s3://${{ env.PLANS_BUCKET }}/plans/${{ matrix.environment }}/${{ github.run_id }}/${{ matrix.environment }}.tfplan
+            s3://${{ env.PLANS_BUCKET }}/plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan
 
           # Opcional: Agregar metadata
           aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3api put-object-tagging \
             --bucket ${{ env.PLANS_BUCKET }} \
-            --key s3://${{ env.PLANS_BUCKET }}/plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan \
+            --key plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan \
             --tagging "TagSet=[{Key=Environment,Value=${{ matrix.environment }}},{Key=RunId,Value=${{ github.run_id }}},{Key=Branch,Value=${{ github.ref_name }}}]"
 
           echo "✅ Plan subido exitosamente a S3"
