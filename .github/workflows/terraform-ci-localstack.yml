@@ -211,7 +211,7 @@ jobs:
           # Opcional: Agregar metadata
           aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3api put-object-tagging \
             --bucket ${{ env.PLANS_BUCKET }} \
-            --key plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan \
+            --key s3://${{ env.PLANS_BUCKET }}/plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan \
             --tagging "TagSet=[{Key=Environment,Value=${{ matrix.environment }}},{Key=RunId,Value=${{ github.run_id }}},{Key=Branch,Value=${{ github.ref_name }}}]"
 
           echo "✅ Plan subido exitosamente a S3"
@@ -291,7 +291,7 @@ jobs:
       - name: Descargar plan de dev
         uses: actions/download-artifact@v5
         with:
-          name: 006/tfplan-dev
+          name: 006/tfplan-${{ matrix.environment }}
 
       - name: Mostrar plan en comentario
         uses: actions/github-script@v8
@@ -301,7 +301,7 @@ jobs:
 
             // Generar el plan en formato legible
             const { execSync } = require('child_process');
-            const planOutput = execSync('terraform show -no-color dev.tfplan', { 
+            const planOutput = execSync('terraform show -no-color ${{ matrix.environment }}.tfplan', { 
               encoding: 'utf8',
               env: { ...process.env, AWS_ENDPOINT_URL: 'http://localhost:4566' }
             });
