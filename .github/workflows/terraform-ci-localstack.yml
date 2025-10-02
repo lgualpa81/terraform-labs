@@ -11,6 +11,10 @@ on:
       - "**.tfvars"
       - ".github/workflows/**"
       - "docker-compose.localstack.yml"
+permissions:
+  contents: read
+  pull-requests: write # Necesario para comentar en PRs
+  issues: write # Necesario para comentar en issues
 
 # Variables globales
 env:
