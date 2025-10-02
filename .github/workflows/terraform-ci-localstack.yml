@@ -82,10 +82,10 @@ jobs:
       # Paso 6: Inicializar Terraform con backend S3
       - name: Terraform Init
         run: |
-          terraform init \
-             -backend-config="access_key=test" \
-             -backend-config="secret_key=test"
-      #       -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
+          terraform init
+      #       -backend-config="access_key=test" \
+      #       -backend-config="secret_key=test"
+      #       -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}"
       # env:
       #   AWS_ENDPOINT_URL: http://localhost:4566
 
