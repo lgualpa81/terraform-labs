@@ -80,14 +80,14 @@ jobs:
         run: terraform fmt -check -recursive
 
       # Paso 6: Inicializar Terraform con backend S3
-      - name: Terraform Init
-        run: |
-          terraform init \
-            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
-            -backend-config="access_key=test" \
-            -backend-config="secret_key=test"
-        # env:
-        #   AWS_ENDPOINT_URL: http://localhost:4566
+      # - name: Terraform Init
+      #   run: |
+      #     terraform init \
+      #       -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
+      #       -backend-config="access_key=test" \
+      #       -backend-config="secret_key=test"
+      # env:
+      #   AWS_ENDPOINT_URL: http://localhost:4566
 
       # Paso 7: Validar sintaxis
       - name: Validar sintaxis
@@ -149,7 +149,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
+            -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
             -backend-config="access_key=test" \
             -backend-config="secret_key=test"
         # env:
@@ -282,7 +282,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="endpoint=${{ env.AWS_ENDPOINT_URL }}" \
+            -backend-config="endpoints.s3=${{ env.AWS_ENDPOINT_URL }}" \
             -backend-config="access_key=test" \
             -backend-config="secret_key=test"
         # env:
