@@ -18,7 +18,7 @@ env:
   AWS_ACCESS_KEY_ID: test
   AWS_SECRET_ACCESS_KEY: test
   AWS_DEFAULT_REGION: us-east-1
-  PLANS_BUCKET: terraform-plans-bucket
+  PLANS_BUCKET: terraform-bucket
   AWS_ENDPOINT_URL: http://localhost:4566
 
 jobs:
@@ -211,19 +211,19 @@ jobs:
           # Opcional: Agregar metadata
           aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3api put-object-tagging \
             --bucket ${{ env.PLANS_BUCKET }} \
-            --key plans/${{ matrix.environment }}/${{ github.run_id }}/${{ matrix.environment }}.tfplan \
+            --key plans/${{ matrix.environment }}/${{ matrix.environment }}.tfplan \
             --tagging "TagSet=[{Key=Environment,Value=${{ matrix.environment }}},{Key=RunId,Value=${{ github.run_id }}},{Key=Branch,Value=${{ github.ref_name }}}]"
 
           echo "✅ Plan subido exitosamente a S3"
 
           echo "📊 Verificando recursos creados en LocalStack..."
           aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls
-          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls s3://${{ env.PLANS_BUCKET }}
+          aws --endpoint-url=${{ env.AWS_ENDPOINT_URL }} s3 ls s3://${{ env.PLANS_BUCKET }} --recursive
         # env:
         #   AWS_ENDPOINT_URL: http://localhost:4566
 
       # Guardar el plan para usar en CD, upload a GitHub Artifacts para backup
-      - name: Subir plan
+      - name: Subir plan a GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}

@@ -5,7 +5,7 @@ echo "🚀 Configurando LocalStack para Terraform..."
 
 # Variables
 LOCALSTACK_ENDPOINT="http://localhost:4566"
-BUCKET_NAME="terraform-bucket-state"
+BUCKET_NAME="terraform-bucket"
 AWS_DEFAULT_REGION="us-east-1"
 
 # Configurar AWS CLI para LocalStack
