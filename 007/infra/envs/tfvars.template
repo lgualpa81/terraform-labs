@@ -1,0 +1,10 @@
+pg_db_password = "docker123"
+external_ports = {
+  nginx  = 8080,
+  pg     = 5432
+  result = 3000
+  redis  = 6379
+}
+
+project_name = "votingtf"
+
