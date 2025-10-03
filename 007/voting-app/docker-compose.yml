@@ -1,0 +1,67 @@
+services:
+  vote:
+    build: ./vote
+    container_name: voting-app
+    ports:
+      - "80:80"
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - DATABASE_HOST=${DATABASE_HOST}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_NAME=${DATABASE_NAME}
+    depends_on:
+      - redis
+
+  result:
+    build: ./result
+    container_name: voting-result
+    ports:
+      - "3000:3000"
+    environment:
+      - APP_PORT=3000
+      - DATABASE_HOST=${DATABASE_HOST}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_NAME=${DATABASE_NAME}
+    depends_on:
+      - redis
+      - pg15db
+
+  worker:
+    build: ./worker
+    container_name: voting-worker
+    environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - DATABASE_HOST=${DATABASE_HOST}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_NAME=${DATABASE_NAME}
+    depends_on:
+      - redis
+      - pg15db
+
+  redis:
+    image: "redis:alpine"
+    container_name: voting-cache
+    ports:
+      - "6379:6379"
+
+  pg15db:
+    image: "postgres:15-alpine"
+    container_name: voting-db
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+
+    #https://github.com/rodvel-inc/d27-cicd
+    #https://github.com/smavodev
+    #https://github.com/chichocoria
